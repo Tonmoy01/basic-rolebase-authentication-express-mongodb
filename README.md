@@ -98,6 +98,18 @@ The API listens on port **5000** by default.
 
 ---
 
+## 🔎 Current status (what's implemented right now)
+
+- User registration (`POST /api/auth/register`) with password hashing and creation of access + refresh tokens.
+- User login (`POST /api/auth/login`) with access + refresh tokens, refresh token hashed and stored on user record, and HTTP-only cookies set.
+- Token refresh endpoint (`POST /api/auth/refresh`) issues new access and refresh tokens when a valid refresh cookie is present.
+- Logout flow clears refresh token server-side and client cookies (`POST /api/auth/logout`).
+- Password reset flow: `POST /api/auth/forgot-password` sends an email with a reset link (uses Nodemailer), and `POST /api/auth/reset-password/:token` verifies token and updates password.
+- Role-based access control with `authorize` middleware and admin-only routes (`/api/admin`).
+- User profile route (`GET /api/user/me`) protected by JWT cookie authentication.
+- Nodemailer mailer utility is present (`utils/mailer.js`) and environment variables for SMTP are documented.
+- Branches: `main` and `tonmoy` exist; working changes are on `tonmoy` and have been synced to `main`.
+
 ## 🛠 Project Structure
 
 ```
