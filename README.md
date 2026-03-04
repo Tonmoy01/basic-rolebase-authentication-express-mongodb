@@ -1,4 +1,4 @@
-# learn-express-mongodb
+# basic-rolebase-authentication-express-mongodb
 
 A simple Express & MongoDB authentication example with role-based structure.  
 The codebase demonstrates user registration, login, JWT‑based auth, and cookie support.
