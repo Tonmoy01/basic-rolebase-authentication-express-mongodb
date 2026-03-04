@@ -5,7 +5,7 @@ export const protect = async (req, res, next) => {
   // const auth = req.headers.authorization || '';
   // const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
 
-  const token = req.cookies?.token;
+  const token = req.cookies?.accessToken;
 
   if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
