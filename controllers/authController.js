@@ -1,7 +1,11 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { signToken } from '../utils/token.js';
-import { setAuthCookie } from '../utils/cookies.js';
+import { signAccessToken, signRefreshToken } from '../utils/token.js';
+import { setAuthCookies, clearAuthCookies } from '../utils/cookies.js';
+
+const hashToken = (t) => crypto.createHash('sha256').update(t).digest('hex');
 
 // Register a new user
 export const register = async (req, res) => {
@@ -19,9 +23,13 @@ export const register = async (req, res) => {
 
   const user = await User.create({ name, email, password: hashed });
 
-  const token = signToken({ id: user._id });
+  const accessToken = signAccessToken({ id: user._id });
+  const refreshToken = signRefreshToken({ id: user._id });
 
-  setAuthCookie(res, token);
+  user.refreshTokenHash = hashToken(refreshToken);
+  await user.save();
+
+  setAuthCookies(res, { accessToken, refreshToken });
 
   res.status(201).json({
     message: 'User registered successfully!',
@@ -43,9 +51,12 @@ export const login = async (req, res) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
-  const token = signToken({ id: user._id });
+  const accessToken = signAccessToken({ id: user._id });
+  const refreshToken = signRefreshToken({ id: user._id });
+  user.refreshTokenHash = hashToken(refreshToken);
+  await user.save();
 
-  setAuthCookie(res, token);
+  setAuthCookies(res, { accessToken, refreshToken });
 
   res.json({
     message: 'Logged in successfully!',
@@ -53,15 +64,49 @@ export const login = async (req, res) => {
   });
 };
 
-// Logout user
-export const logout = (req, res) => {
-  const isProd = process.env.NODE_ENV === 'production';
+// Refresh access token
+export const refresh = async (req, res) => {
+  const token = req.cookies?.refreshToken;
+  if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-  });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+    if (!user.refreshTokenHash || user.refreshTokenHash !== hashToken(token)) {
+      clearAuthCookies(res);
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const newAccessToken = signAccessToken({ id: user._id });
+    const newRefreshToken = signRefreshToken({ id: user._id });
+
+    user.refreshTokenHash = hashToken(newRefreshToken);
+    await user.save();
+
+    setAuthCookies(res, {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+
+    res.json({ accessToken: newAccessToken });
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
+// Logout user
+export const logout = async (req, res) => {
+  const token = req.cookies?.refreshToken;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+      await User.findByIdAndUpdate(decoded.id, { refreshTokenHash: null });
+    } catch {}
+  }
 
   res.json({ message: 'Logged out successfully!' });
 };
